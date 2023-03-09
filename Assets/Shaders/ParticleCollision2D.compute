@@ -1,0 +1,174 @@
+#pragma kernel ResetParticlesKernel
+#pragma kernel ResetGridKernel
+
+#pragma kernel GridKernel
+#pragma kernel ParticlesKernel
+#pragma kernel UpdateBufferKernel
+
+#pragma kernel RenderKernel
+#pragma kernel ParticlesRenderKernel
+
+#define MAX_PARTICLES_PER_CELL 64
+#include "Utils.cginc"
+
+RWTexture2D<float4> outTexture;
+
+struct Particle
+{
+    float2 position;
+    float2 velocity;
+    float4 color;
+    int size;
+};
+
+RWStructuredBuffer<Particle> particlesBufferRead;
+RWStructuredBuffer<Particle> particlesBuffer;
+RWStructuredBuffer<uint> gridBuffer;
+
+float2 rez;
+uint time;
+uint particlesCount;
+
+int gridRange;
+uint gridSize;
+bool useGrid;
+
+void DrawCircle(int2 center, int radius, float4 color)
+{
+    for (int i = -radius; i <= radius; i++)
+    {
+        for (int j = -radius; j <= radius; j++)
+        {
+            float mag = length(float2(i, j));
+            if (mag < radius)
+            {
+                float strength = 1 - mag / radius;
+                outTexture[center + int2(i, j)] = float4(color.xyz * strength, 1);
+                continue;
+            }
+        }
+    }
+}
+
+void AddGravity(inout float2 position, inout float2 velocity)
+{
+    float speed = .01;
+    float2 gravity = float2(0, -1) * speed;
+    velocity += gravity;
+    velocity = clamp(velocity, -1, 1);
+    position += velocity;
+}
+
+void WallCollision(inout float2 position, inout float2 velocity, int size)
+{
+    float bounce = 0;
+    if (position.x < size)
+    {
+        position.x = size;
+        velocity.x = -velocity.x * bounce;
+    }
+    else if (position.x > rez.x - size)
+    {
+        position.x = rez.x - size;
+        velocity.x = -velocity.x * bounce;
+    }
+
+    if (position.y < size)
+    {
+        position.y = size;
+        velocity.y = -velocity.y * bounce;
+    }
+    else if (position.y > rez.y - size)
+    {
+        position.y = rez.y - size;
+        velocity.y = -velocity.y * bounce;
+    }
+    
+    velocity = clamp(velocity, -1, 1);
+}
+
+void ParticleCollision(inout float2 position, inout float2 velocity, int size, uint id)
+{
+    float mdir = 1;
+    float bounce = .4;
+    for (uint i = 0; i < particlesCount; i++)
+    {
+        Particle other = particlesBufferRead[i];
+        if (i == id)
+            continue;
+        
+        float2 diff = position - other.position;
+        if (length(diff) < size + other.size)
+        {
+            float overlap = size + other.size - length(diff);
+            float2 dir = normalize(diff) * overlap * .5 * mdir;
+            position += dir;
+            // velocity += dir + normalize(diff) * bounce;
+            velocity += dir;
+            velocity = clamp(velocity, -1, 1);
+        }
+    }
+}
+
+[numthreads(64, 1, 1)]
+void ResetParticlesKernel(uint3 id : SV_DispatchThreadID)
+{
+    float2 random = Random(id.x * .0001 + time * .001);
+    Particle particle;
+    particle.position = random * rez;
+    particle.velocity = float2(0, 0);
+    particle.color = float4(random.xyx, 1);
+    particle.size = 4;
+    
+    particlesBuffer[id.x] = particle;
+    particlesBufferRead[id.x] = particle;
+}
+
+[numthreads(64, 1, 1)]
+void ResetGridKernel(uint3 id : SV_DispatchThreadID)
+{
+    gridBuffer[id.x] = -1;
+}
+
+[numthreads(64, 1, 1)]
+void GridKernel(uint3 id : SV_DispatchThreadID)
+{
+    Particle particle = particlesBufferRead[id.x];
+    
+    uint2 cell = uint2(particle.position / gridSize);
+    uint rgd = rez.x / gridSize;
+    uint startIndex = (cell.x + cell.y * rgd) * MAX_PARTICLES_PER_CELL;
+    uint cellIndex = startIndex + id.x % MAX_PARTICLES_PER_CELL;
+    
+    gridBuffer[cellIndex] = id.x;
+}
+
+[numthreads(64, 1, 1)]
+void ParticlesKernel(uint3 id : SV_DispatchThreadID)
+{
+    Particle particle = particlesBufferRead[id.x];
+
+    AddGravity(particle.position, particle.velocity);
+    WallCollision(particle.position, particle.velocity, particle.size);
+    ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
+    particlesBuffer[id.x] = particle;
+}
+
+[numthreads(64, 1, 1)]
+void UpdateBufferKernel(uint3 id : SV_DispatchThreadID)
+{
+    particlesBufferRead[id.x] = particlesBuffer[id.x];
+}
+
+[numthreads(32, 32, 1)]
+void RenderKernel(uint3 id : SV_DispatchThreadID)
+{
+    outTexture[id.xy] = float4(0, 0, 0, 1);
+}
+
+[numthreads(64, 1, 1)]
+void ParticlesRenderKernel(uint3 id : SV_DispatchThreadID)
+{
+    Particle particle = particlesBufferRead[id.x];
+    DrawCircle(round(particle.position), particle.size, particle.color);
+}
