@@ -9,7 +9,8 @@
 #pragma kernel ParticlesRenderKernel
 
 #define MAX_PARTICLES_PER_CELL 64
-#define MAX_PARTICLE_VELOCITY_MAG 1
+#define MAX_PARTICLE_VELOCITY_MAG 3
+#define MIN_PARTICLE_SIZE 3
 #include "Utils.cginc"
 
 RWTexture2D<float4> outTexture;
@@ -34,13 +35,14 @@ int gridRange;
 uint gridSize;
 bool useGrid;
 
-float bounceWall;
 float bounceParticle;
 float gravityForce;
+float massMatters;
+float colorDecay;
+float bounceWall;
 float friction;
 float spacing;
 float dirMult;
-float colorDecay;
 
 int particleSize;
 bool randomSize;
@@ -48,18 +50,25 @@ bool randomSize;
 float4 particleColor;
 bool randomColor;
 
-float2 mouseUV;
+float2 mouseStrength;
 float2 mouseTrigger;
-float mouseRadius;
-float mouseStrength;
+float2 mouseUV;
 float mouseRadiusMultiplier;
+float mouseRadius;
 
 float MousePixelDist(float2 p)
 {
-    float2 uv = p / rez;
+    float aspect = rez.x / rez.y;
+    float2 uv = (p / rez);
     float2 diff = uv - mouseUV;
-    float dist = length(diff);
-    return dist;
+    diff.y /= aspect;
+    return length(diff);
+}
+
+float ParticleMass(int size)
+{
+    float m = size / (float) particleSize;
+    return lerp(1, m, massMatters);
 }
 
 void DrawCircle(int2 center, int radius, float4 color)
@@ -80,37 +89,37 @@ void DrawCircle(int2 center, int radius, float4 color)
     }
 }
 
-void AddGravity(inout float2 velocity)
+void AddGravity(inout float2 velocity, int size)
 {
     float2 gravity = float2(0, -1) * gravityForce;
-    velocity += gravity;
-    velocity = clamp(velocity, -1, 1) * MAX_PARTICLE_VELOCITY_MAG;
+    velocity += gravity * ParticleMass(size);
+    velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
 }
 
 void AddFriction(inout float2 velocity)
 {
     velocity *= (1 - friction);
-    velocity = clamp(velocity, -1, 1) * MAX_PARTICLE_VELOCITY_MAG;
+    velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
 }
 
 void AddMouseForce(inout float2 velocity, float2 position)
 {
-    float d = MousePixelDist(position);
-    if (d < mouseRadius * mouseRadiusMultiplier)
+    if (MousePixelDist(position) < mouseRadius * mouseRadiusMultiplier)
     {
         float2 dir = normalize(mouseUV - position / rez);
         // float strength = 1 - d / mouseRadius;
-        float2 vel = dir * mouseStrength;
 
         if (mouseTrigger.x > 0)
-            velocity += vel;
+        {
+            velocity += dir;
+            velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG) * mouseStrength.x;
+        }
         
-        velocity = clamp(velocity, -1, 1) * MAX_PARTICLE_VELOCITY_MAG;
-
-        // so that we get the cool effect of the mouse pulling the particles with no limit
         if (mouseTrigger.y > 0)
-            velocity -= vel;
-
+        {
+            velocity -= dir;
+            velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG) * mouseStrength.y;
+        }
     }
 }
 
@@ -138,32 +147,60 @@ void WallCollision(inout float2 position, inout float2 velocity, int size)
         velocity.y = -velocity.y * bounceWall;
     }
     
-    velocity = clamp(velocity, -1, 1) * MAX_PARTICLE_VELOCITY_MAG;
+    velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
+}
+
+void IterateColllision(inout float2 position, inout float2 velocity, int size, uint id, uint i)
+{
+    if (i == id)
+        return;
+    
+    Particle other = particlesBufferRead[i];
+    float2 diff = position - other.position;
+    float rad = (size + other.size) * spacing;
+    float mag = length(diff);
+    
+    if (mag >= rad) return;
+    
+    float m1 = ParticleMass(size);
+    float m2 = ParticleMass(other.size);
+    float rel = 1 - m1 / (m1 + m2);
+
+    float overlap = (rad - mag) * rel;
+    float2 dir = normalize(diff) * overlap * dirMult;
+    position += dir;
+
+    // velocity = (m1 - m2) / (m1 + m2) * velocity + (2 * m2) / (m1 + m2) * other.velocity;
+    velocity += dir * bounceParticle;
+    velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
 }
 
 void ParticleCollision(inout float2 position, inout float2 velocity, int size, uint id)
 {
-    Particle other;
-    float2 diff, dir;
-    float overlap, mag, rad;
-
     for (uint i = 0; i < particlesCount; i++)
-    {
-        if (i == id)
-            continue;
-        
-        other = particlesBufferRead[i];
-        diff = position - other.position;
-        rad = (size + other.size) * spacing;
-        mag = length(diff);
+        IterateColllision(position, velocity, size, id, i);
+}
 
-        if (mag < rad)
+void ParticleCollisionGrid(inout float2 position, inout float2 velocity, int size, uint id)
+{
+    int particleIndex;
+    uint2 cell = uint2(position / gridSize);
+    uint rgd = rez.x / gridSize;
+    uint cellX, startIndex;
+
+    for (int i = -gridRange; i <= gridRange; i ++)
+    {
+        cellX = (cell.x + i) % rgd;
+        for (int j = -gridRange; j <= gridRange; j ++)
         {
-            overlap = rad - mag;
-            dir = normalize(diff) * overlap * .5 * dirMult;
-            position += dir;
-            velocity += dir * bounceParticle;
-            velocity = clamp(velocity, -1, 1) * MAX_PARTICLE_VELOCITY_MAG;
+            startIndex = (cellX + (cell.y + j) % rgd * rgd) * MAX_PARTICLES_PER_CELL;
+            
+            for (uint k = 0; k < MAX_PARTICLES_PER_CELL; k ++)
+            {
+                particleIndex = gridBuffer[startIndex + k];
+                if (particleIndex == -1) continue;
+                IterateColllision(position, velocity, size, id, particleIndex);
+            }
         }
     }
 }
@@ -184,7 +221,7 @@ void ResetParticlesKernel(uint3 id : SV_DispatchThreadID)
 
     particle.size = particleSize;
     if (randomSize)
-        particle.size = rand * particleSize + 2;
+        particle.size = rand * particleSize + MIN_PARTICLE_SIZE;
     
     particlesBuffer[id.x] = particle;
     particlesBufferRead[id.x] = particle;
@@ -218,13 +255,15 @@ void ParticlesKernel(uint3 id : SV_DispatchThreadID)
 
     Particle particle = particlesBufferRead[id.x];
 
-    AddGravity(particle.velocity);
+    AddGravity(particle.velocity, particle.size);
     AddFriction(particle.velocity);
     AddMouseForce(particle.velocity, particle.position);
     particle.position += particle.velocity;
 
+    if (useGrid) ParticleCollisionGrid(particle.position, particle.velocity, particle.size, id.x);
+    else ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
+
     WallCollision(particle.position, particle.velocity, particle.size);
-    ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
 
     particlesBuffer[id.x] = particle;
 }
@@ -241,10 +280,7 @@ void RenderKernel(uint3 id : SV_DispatchThreadID)
     float3 color = outTexture[id.xy].xyz * (1 - colorDecay);
     outTexture[id.xy] = float4(color, 1);
 
-    // float aspect = rez.x / rez.y;
-    // if (MousePixelDist(float2(id.x, id.y / aspect)) < mouseRadius)
-
-    if (MousePixelDist(float2(id.x, id.y)) < mouseRadius) 
+    if (MousePixelDist((float2) id.xy) < mouseRadius) 
     {
         outTexture[id.xy] = hsb2rgb(float3(1, 0, .2));
 
@@ -254,11 +290,16 @@ void RenderKernel(uint3 id : SV_DispatchThreadID)
         if (mouseTrigger.y > 0)
             outTexture[id.xy] = hsb2rgb(float3(.3, .5, .3));
     }
+
+    // debug grid
+    // if (id.x % gridSize == 0 || id.y % gridSize == 0)
+    //     outTexture[id.xy] = float4(1, 0, 0, 1);
 }
 
 [numthreads(64, 1, 1)]
 void ParticlesRenderKernel(uint3 id : SV_DispatchThreadID)
 {
+    // return;
     Particle particle = particlesBufferRead[id.x];
     DrawCircle(round(particle.position), particle.size, particle.color * particleColor);
 }

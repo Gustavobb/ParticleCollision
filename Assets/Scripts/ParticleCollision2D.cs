@@ -65,13 +65,18 @@ public class ParticleCollision2D : MonoBehaviour
     [Range(MIN_SPACING, MAX_SPACING)]
     [SerializeField] private float _spacing = 1f;
 
+    private const float MAX_MASS_MATTERS = 1f;
+    private const float MIN_MASS_MATTERS = 0f;
+    [Range(MIN_MASS_MATTERS, MAX_MASS_MATTERS)]
+    [SerializeField] private float _massMatters = 1f;
+
     private const float MAX_DIR_MULT = 5f;
     private const float MIN_DIR_MULT = 0f;
     [Range(MIN_DIR_MULT, MAX_DIR_MULT)]
     [SerializeField] private float _dirMult = 1f;
 
-    private const int MAX_PARTICLE_SIZE = 10;
-    private const int MIN_PARTICLE_SIZE = 1;
+    private const int MAX_PARTICLE_SIZE = 20;
+    private const int MIN_PARTICLE_SIZE = 2;
     [Range(MIN_PARTICLE_SIZE, MAX_PARTICLE_SIZE)]
     [SerializeField] private int _particleSize = 6;
     [SerializeField] private bool _randomSize = false;
@@ -87,7 +92,10 @@ public class ParticleCollision2D : MonoBehaviour
     private const float MAX_MOUSE_STRENGTH = 5f;
     private const float MIN_MOUSE_STRENGTH = 0f;
     [Range(MIN_MOUSE_STRENGTH, MAX_MOUSE_STRENGTH)]
-    [SerializeField] private float _mouseStrength = 1f;
+    [SerializeField] private float _mouseStrengthX = 1f;
+
+    [Range(MIN_MOUSE_STRENGTH, MAX_MOUSE_STRENGTH)]
+    [SerializeField] private float _mouseStrengthY = 1f;
 
     private const float MAX_MOUSE_RADIUS_MULTIPLIER = 5f;
     private const float MIN_MOUSE_RADIUS_MULTIPLIER = 0f;
@@ -159,7 +167,6 @@ public class ParticleCollision2D : MonoBehaviour
 
         _particlesRenderKernel = _shader.FindKernel("ParticlesRenderKernel");
         _particlesKernel = _shader.FindKernel("ParticlesKernel");
-        _resetGridKernel = _shader.FindKernel("ResetGridKernel");
         _updateBufferKernel = _shader.FindKernel("UpdateBufferKernel");
         _renderKernel = _shader.FindKernel("RenderKernel");
 
@@ -167,7 +174,8 @@ public class ParticleCollision2D : MonoBehaviour
         _particlesBufferRead = new ComputeBuffer(_particlesCount, sizeof(float) * 8 + sizeof(int));
 
         _gridKernel = _shader.FindKernel("GridKernel");
-        _gridBufferSize = ((int) _rez.x / _gridSize) * ((int) _rez.x / _gridSize) * 64;
+        _resetGridKernel = _shader.FindKernel("ResetGridKernel");
+        _gridBufferSize = ((int) _rez.x / _gridSize) * ((int) _rez.y / _gridSize) * 64;
         _gridBuffer = new ComputeBuffer(_gridBufferSize, sizeof(int));
         _buffers.Add(_gridBuffer);
         
@@ -225,7 +233,7 @@ public class ParticleCollision2D : MonoBehaviour
     {
         GPURenderKernel();
         GPUParticlesRenderKernel();
-        _image.texture = _outTexture;
+        _image.texture = _rdTextures[0].texture;
     }
 
     private void GPURenderKernel()
@@ -263,9 +271,10 @@ public class ParticleCollision2D : MonoBehaviour
         _shader.SetVector("particleColor", _particleColor);
         _shader.SetInt("randomColor", _randomColor ? 1 : 0);
         _shader.SetVector("mouseTrigger", _mouseTrigger);
-        _shader.SetFloat("mouseStrength", _mouseStrength);
+        _shader.SetVector("mouseStrength", new Vector2(_mouseStrengthX, _mouseStrengthY));
         _shader.SetFloat("mouseRadiusMultiplier", _mouseRadiusMultiplier);
         _shader.SetFloat("dirMult", _dirMult);
+        _shader.SetFloat("massMatters", _massMatters);
         _shader.SetFloat("spacing", _spacing);
         _shader.SetFloat("friction", _friction);
         _shader.SetInt("particleSize", _particleSize);
@@ -280,8 +289,8 @@ public class ParticleCollision2D : MonoBehaviour
     private Vector2 GetThreadGroupSize()
     {
         float pageSize = 32f;
-        float threadsx = Mathf.Round(_rez.x / pageSize);
-        float threadsy = Mathf.Round(_rez.y / pageSize);
+        float threadsx = Mathf.Ceil(_rez.x / pageSize);
+        float threadsy = Mathf.Ceil(_rez.y / pageSize);
 
         if (threadsx < 1) threadsx = 1;
         if (threadsy < 1) threadsy = 1;

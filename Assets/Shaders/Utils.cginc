@@ -19,8 +19,6 @@ float4 hsb2rgb(float3 c)
 // http://www.chilliant.com/rgb2hsv.html
 float3 HUEtoRGB(in float H)
 {
-	if (H == 0) return 0;
-	
     float R = abs(H * 6 - 3) - 1;
     float G = 2 - abs(H * 6 - 2);
     float B = 2 - abs(H * 6 - 4);

@@ -488,19 +488,21 @@ MonoBehaviour:
   _useGrid: 0
   _dynamicVariables: 1
   _isPlaying: 1
-  _particlesCount: 3000
+  _particlesCount: 64
   _bounceWall: 0
   _bounceParticle: 1
   _gravityForce: 0.01
   _friction: 0.01
   _spacing: 1
+  _massMatters: 1
   _dirMult: 1
-  _particleSize: 5
+  _particleSize: 9
   _randomSize: 1
   _particleColor: {r: 1, g: 1, b: 1, a: 1}
   _randomColor: 1
   _mouseRadius: 0.05
-  _mouseStrength: 1
+  _mouseStrengthX: 1
+  _mouseStrengthY: 1
   _mouseRadiusMultiplier: 1
   _colorDecay: 1
   _rdTextures:
