@@ -488,7 +488,7 @@ MonoBehaviour:
   _spatialDivisions: 8
   _spatialRange: 1
   _useSpatialPartitioning: 0
-  _particlesCount: 640
+  _particlesCount: 1920
   _bounceWall: 0
   _bounceParticle: 1
   _gravityForce: 0.03
@@ -503,8 +503,8 @@ MonoBehaviour:
   _mouseRadius: 0.05
   _mouseStrengthX: 1
   _mouseStrengthY: 1
-  _mouseRadiusMultiplier: 1
-  _colorDecay: 1
+  _mouseRadiusMultiplier: 1.5
+  _colorDecay: 0.3
   _rdTextures:
   - texture: {fileID: 1769140854}
     name: outTexture
