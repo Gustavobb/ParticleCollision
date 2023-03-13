@@ -1,14 +1,14 @@
 #pragma kernel ResetParticlesKernel
-#pragma kernel ResetGridKernel
+#pragma kernel ResetSpatialPartitionKernel
 
-#pragma kernel GridKernel
+#pragma kernel SpatialPartitionKernel
 #pragma kernel ParticlesKernel
 #pragma kernel UpdateBufferKernel
 
 #pragma kernel RenderKernel
 #pragma kernel ParticlesRenderKernel
 
-#define MAX_PARTICLES_PER_CELL 64
+#define MAX_PARTICLES_PER_CELL 128
 #define MAX_PARTICLE_VELOCITY_MAG 3
 #define MIN_PARTICLE_SIZE 3
 #include "Utils.cginc"
@@ -25,15 +25,16 @@ struct Particle
 
 RWStructuredBuffer<Particle> particlesBufferRead;
 RWStructuredBuffer<Particle> particlesBuffer;
-RWStructuredBuffer<uint> gridBuffer;
+RWStructuredBuffer<int> spatialPartitionBuffer;
 
 float2 rez;
 uint time;
 uint particlesCount;
+float deltaTime;
 
-int gridRange;
-uint gridSize;
-bool useGrid;
+int spatialRange;
+uint spatialDivisions;
+bool useSpatialPartitioning;
 
 float bounceParticle;
 float gravityForce;
@@ -169,7 +170,7 @@ void IterateColllision(inout float2 position, inout float2 velocity, int size, u
     float overlap = (rad - mag) * rel;
     float2 dir = normalize(diff) * overlap * dirMult;
     position += dir;
-
+    
     // velocity = (m1 - m2) / (m1 + m2) * velocity + (2 * m2) / (m1 + m2) * other.velocity;
     velocity += dir * bounceParticle;
     velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
@@ -184,20 +185,20 @@ void ParticleCollision(inout float2 position, inout float2 velocity, int size, u
 void ParticleCollisionGrid(inout float2 position, inout float2 velocity, int size, uint id)
 {
     int particleIndex;
-    uint2 cell = uint2(position / gridSize);
-    uint rgd = rez.x / gridSize;
+    int2 sSize = rez / spatialDivisions;
+    uint2 cell = floor(position / sSize);
     uint cellX, startIndex;
 
-    for (int i = -gridRange; i <= gridRange; i ++)
+    for (int i = -spatialRange; i <= spatialRange; i ++)
     {
-        cellX = (cell.x + i) % rgd;
-        for (int j = -gridRange; j <= gridRange; j ++)
+        cellX = (cell.x + i) % spatialDivisions;
+        for (int j = -spatialRange; j <= spatialRange; j ++)
         {
-            startIndex = (cellX + (cell.y + j) % rgd * rgd) * MAX_PARTICLES_PER_CELL;
+            startIndex = (cellX + (cell.y + j) % spatialDivisions * spatialDivisions) * MAX_PARTICLES_PER_CELL;
             
             for (uint k = 0; k < MAX_PARTICLES_PER_CELL; k ++)
             {
-                particleIndex = gridBuffer[startIndex + k];
+                particleIndex = spatialPartitionBuffer[startIndex + k];
                 if (particleIndex == -1) continue;
                 IterateColllision(position, velocity, size, id, particleIndex);
             }
@@ -228,29 +229,30 @@ void ResetParticlesKernel(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(64, 1, 1)]
-void ResetGridKernel(uint3 id : SV_DispatchThreadID)
+void ResetSpatialPartitionKernel(uint3 id : SV_DispatchThreadID)
 {
-    gridBuffer[id.x] = -1;
+    spatialPartitionBuffer[id.x] = -1;
 }
 
 [numthreads(64, 1, 1)]
-void GridKernel(uint3 id : SV_DispatchThreadID)
+void SpatialPartitionKernel(uint3 id : SV_DispatchThreadID)
 {
     Particle particle = particlesBufferRead[id.x];
     
-    uint2 cell = uint2(particle.position / gridSize);
-    uint rgd = rez.x / gridSize;
-    uint startIndex = (cell.x + cell.y * rgd) * MAX_PARTICLES_PER_CELL;
-    uint cellIndex = startIndex + id.x % MAX_PARTICLES_PER_CELL;
+    int2 sSize = rez / spatialDivisions;
+    uint2 cell = floor(particle.position / sSize);
+    int arrayIndex = (cell.x + cell.y * spatialDivisions) * MAX_PARTICLES_PER_CELL;
     
-    gridBuffer[cellIndex] = id.x;
+    float hash = random(id.x * id.x * .0001 + time * .001);
+    int index = round(hash * (MAX_PARTICLES_PER_CELL - 1));
+    spatialPartitionBuffer[arrayIndex + index] = id.x;
 }
 
 [numthreads(64, 1, 1)]
 void ParticlesKernel(uint3 id : SV_DispatchThreadID)
 {
     // TODO:
-    // - Add grid
+    // - Add kd tree
     // - Add mass (gravity, friction, bounceness, etc)
 
     Particle particle = particlesBufferRead[id.x];
@@ -260,7 +262,7 @@ void ParticlesKernel(uint3 id : SV_DispatchThreadID)
     AddMouseForce(particle.velocity, particle.position);
     particle.position += particle.velocity;
 
-    if (useGrid) ParticleCollisionGrid(particle.position, particle.velocity, particle.size, id.x);
+    if (useSpatialPartitioning) ParticleCollisionGrid(particle.position, particle.velocity, particle.size, id.x);
     else ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
 
     WallCollision(particle.position, particle.velocity, particle.size);
@@ -289,16 +291,11 @@ void RenderKernel(uint3 id : SV_DispatchThreadID)
         if (mouseTrigger.y > 0)
             outTexture[id.xy] = hsb2rgb(float3(.3, .5, .3));
     }
-
-    // debug grid
-    // if (id.x % gridSize == 0 || id.y % gridSize == 0)
-    //     outTexture[id.xy] = float4(1, 0, 0, 1);
 }
 
 [numthreads(64, 1, 1)]
 void ParticlesRenderKernel(uint3 id : SV_DispatchThreadID)
 {
-    // return;
     Particle particle = particlesBufferRead[id.x];
     DrawCircle(round(particle.position), particle.size, particle.color * particleColor);
 }

@@ -18,23 +18,22 @@ public class ParticleCollision2D : MonoBehaviour
     private const float MIN_STEPS_MOD = 1f;
     [Range(MIN_STEPS_MOD, MAX_STEPS_MOD)]
     [SerializeField] private int _stepsMod = 1;
-
     [SerializeField] private int _rezX = 512;
-
-    private const int MAX_GRID_SIZE = 512;
-    private const int MIN_GRID_SIZE = 8;
-    [Range(MIN_GRID_SIZE, MAX_GRID_SIZE)]
-    [SerializeField] private int _gridSize = 32;
-
-    private const int MAX_GRID_RANGE = 10;
-    private const int MIN_GRID_RANGE = 1;
-    [Range(MIN_GRID_RANGE, MAX_GRID_RANGE)]
-    [SerializeField] private int _gridRange = 1;
-    [SerializeField] private bool _useGrid = false;
     private Vector2 _rez;
-
     [SerializeField] private bool _dynamicVariables = false;
     [SerializeField] private bool _isPlaying = true;
+
+    private const int MAX_SPATIAL_DIVISIONS = 30;
+    private const int MIN_SPATIAL_DIVISIONS = 1;
+    [Header("Spatial partitioning")]
+    [Range(MIN_SPATIAL_DIVISIONS, MAX_SPATIAL_DIVISIONS)]
+    [SerializeField] private int _spatialDivisions = 4;
+
+    private const int MAX_SPATIAL_RANGE = 30;
+    private const int MIN_SPATIAL_RANGE = 1;
+    [Range(MIN_SPATIAL_RANGE, MAX_SPATIAL_RANGE)]
+    [SerializeField] private int _spatialRange = 1;
+    [SerializeField] private bool _useSpatialPartitioning = false;
 
     private const int MAX_PARTICLES_COUNT = 1000000;
     private const int MIN_PARTICLES_COUNT = 64;
@@ -117,10 +116,10 @@ public class ParticleCollision2D : MonoBehaviour
     [SerializeField] private  List<RDTexture> _rdTextures = new List<RDTexture>();
     private List<ComputeBuffer> _buffers;
     private List<RenderTexture> _textures;
-    private ComputeBuffer _particlesBuffer, _particlesBufferRead, _gridBuffer;
+    private ComputeBuffer _particlesBuffer, _particlesBufferRead, _spatialPartitionBuffer;
     private RenderTexture _outTexture;
     private Camera _camera;
-    private int _particlesRenderKernel, _renderKernel, _particlesKernel, _gridKernel, _resetGridKernel, _updateBufferKernel, _gridBufferSize;
+    private int _particlesRenderKernel, _renderKernel, _particlesKernel, _spatialPartitionKernel, _resetSpatialPartitionKernel, _updateBufferKernel, _spatialPartitionBufferSize;
 
     private void Awake()
     {
@@ -173,11 +172,12 @@ public class ParticleCollision2D : MonoBehaviour
         _particlesBuffer = new ComputeBuffer(_particlesCount, sizeof(float) * 8 + sizeof(int));
         _particlesBufferRead = new ComputeBuffer(_particlesCount, sizeof(float) * 8 + sizeof(int));
 
-        _gridKernel = _shader.FindKernel("GridKernel");
-        _resetGridKernel = _shader.FindKernel("ResetGridKernel");
-        _gridBufferSize = ((int) _rez.x / _gridSize) * ((int) _rez.y / _gridSize) * 64;
-        _gridBuffer = new ComputeBuffer(_gridBufferSize, sizeof(int));
-        _buffers.Add(_gridBuffer);
+        _spatialPartitionKernel = _shader.FindKernel("SpatialPartitionKernel");
+        _resetSpatialPartitionKernel = _shader.FindKernel("ResetSpatialPartitionKernel");
+        int particlesPerCell = 128;
+        _spatialPartitionBufferSize = (int) (_spatialDivisions * _spatialDivisions) * particlesPerCell;
+        _spatialPartitionBuffer = new ComputeBuffer(_spatialPartitionBufferSize, sizeof(int));
+        _buffers.Add(_spatialPartitionBuffer);
         
         _buffers.Add(_particlesBuffer);
         _buffers.Add(_particlesBufferRead);
@@ -206,17 +206,17 @@ public class ParticleCollision2D : MonoBehaviour
 
     private void GPUParticlesKernel()
     {
-        if (_useGrid)
+        if (_useSpatialPartitioning)
         {
-            _shader.SetBuffer(_resetGridKernel, "gridBuffer", _gridBuffer);
-            _shader.Dispatch(_resetGridKernel, _gridBufferSize / 64, 1, 1);
+            _shader.SetBuffer(_resetSpatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
+            _shader.Dispatch(_resetSpatialPartitionKernel, _spatialPartitionBufferSize / 64, 1, 1);
 
-            _shader.SetBuffer(_gridKernel, "particlesBufferRead", _particlesBufferRead);
-            _shader.SetBuffer(_gridKernel, "gridBuffer", _gridBuffer);
-            _shader.Dispatch(_gridKernel, _particlesCount / 64, 1, 1);
+            _shader.SetBuffer(_spatialPartitionKernel, "particlesBufferRead", _particlesBufferRead);
+            _shader.SetBuffer(_spatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
+            _shader.Dispatch(_spatialPartitionKernel, _particlesCount / 64, 1, 1);
         }
 
-        _shader.SetBuffer(_particlesKernel, "gridBuffer", _gridBuffer);
+        _shader.SetBuffer(_particlesKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
         _shader.SetBuffer(_particlesKernel, "particlesBuffer", _particlesBuffer);
         _shader.SetBuffer(_particlesKernel, "particlesBufferRead", _particlesBufferRead);
 
@@ -258,28 +258,31 @@ public class ParticleCollision2D : MonoBehaviour
         _rez = new Vector2(_rezX, _rezX / _camera.aspect);
         
         _shader.SetVector("rez", _rez);
-        _shader.SetInt("gridSize", _gridSize);
-        _shader.SetInt("gridRange", _gridRange);
         _shader.SetInt("time", Time.frameCount);
-        _shader.SetInt("useGrid", _useGrid ? 1 : 0);
+        _shader.SetFloat("deltaTime", Time.deltaTime);
         _shader.SetInt("particlesCount", _particlesCount);
+
+        _shader.SetInt("spatialDivisions", _spatialDivisions);
+        _shader.SetInt("spatialRange", _spatialRange);
+        _shader.SetInt("useSpatialPartitioning", _useSpatialPartitioning ? 1 : 0);
 
         Vector2 _mouseTrigger = new Vector2(Input.GetMouseButton(0) ? 1 : 0, Input.GetMouseButton(1) ? 1 : 0);
         Vector2 _mouseUV = new Vector2(Input.mousePosition.x / Screen.width, Input.mousePosition.y / Screen.height);
         Cursor.visible = _mouseUV.x < 0 || _mouseUV.x > 1 || _mouseUV.y < 0 || _mouseUV.y > 1 ? true : false;
 
         _shader.SetVector("mouseUV", _mouseUV);
-        _shader.SetVector("particleColor", _particleColor);
-        _shader.SetInt("randomColor", _randomColor ? 1 : 0);
         _shader.SetVector("mouseTrigger", _mouseTrigger);
         _shader.SetVector("mouseStrength", new Vector2(_mouseStrengthX, _mouseStrengthY));
         _shader.SetFloat("mouseRadiusMultiplier", _mouseRadiusMultiplier);
+
+        _shader.SetInt("randomColor", _randomColor ? 1 : 0);
+        _shader.SetVector("particleColor", _particleColor);
+        _shader.SetInt("randomSize", _randomSize ? 1 : 0);
+        _shader.SetInt("particleSize", _particleSize);
         _shader.SetFloat("dirMult", _dirMult);
         _shader.SetFloat("massMatters", _massMatters);
         _shader.SetFloat("spacing", _spacing);
         _shader.SetFloat("friction", _friction);
-        _shader.SetInt("particleSize", _particleSize);
-        _shader.SetInt("randomSize", _randomSize ? 1 : 0);
         _shader.SetFloat("bounceWall", _bounceWall);
         _shader.SetFloat("mouseRadius", _mouseRadius);
         _shader.SetFloat("gravityForce", _gravityForce);

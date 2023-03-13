@@ -482,16 +482,16 @@ MonoBehaviour:
   _image: {fileID: 499535570}
   _stepsFrame: 1
   _stepsMod: 1
-  _rezX: 720
-  _gridSize: 32
-  _gridRange: 1
-  _useGrid: 0
+  _rezX: 1024
   _dynamicVariables: 1
   _isPlaying: 1
-  _particlesCount: 300
+  _spatialDivisions: 8
+  _spatialRange: 1
+  _useSpatialPartitioning: 0
+  _particlesCount: 640
   _bounceWall: 0
   _bounceParticle: 1
-  _gravityForce: 0.05
+  _gravityForce: 0.03
   _friction: 0.01
   _spacing: 1
   _massMatters: 0
