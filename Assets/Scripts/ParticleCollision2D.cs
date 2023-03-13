@@ -160,7 +160,7 @@ public class ParticleCollision2D : MonoBehaviour
     {
         Release();
         _rez = new Vector2(_rezX, _rezX / _camera.aspect);
-
+        
         _rdTextures.Clear();
         _outTexture = CreateRenderTexture(RenderTextureFormat.ARGBFloat);
         _rdTextures.Add(new RDTexture {texture = _outTexture, name = "outTexture"});
@@ -197,6 +197,7 @@ public class ParticleCollision2D : MonoBehaviour
     [EButton]
     private void Step()
     {
+        HandleTouch();
         if (_dynamicVariables) SetRules();
         GPUParticlesKernel();
         UpdateBufferKernel();
@@ -313,5 +314,12 @@ public class ParticleCollision2D : MonoBehaviour
                     texture.Release();
         
         _textures = new List<RenderTexture>();
+    }
+
+    private void HandleTouch()
+    {
+        // finger down reset
+        if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+            Reset();
     }
 }

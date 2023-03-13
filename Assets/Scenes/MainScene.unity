@@ -482,21 +482,21 @@ MonoBehaviour:
   _image: {fileID: 499535570}
   _stepsFrame: 1
   _stepsMod: 1
-  _rezX: 1024
+  _rezX: 720
   _gridSize: 32
   _gridRange: 1
   _useGrid: 0
   _dynamicVariables: 1
   _isPlaying: 1
-  _particlesCount: 64
+  _particlesCount: 300
   _bounceWall: 0
   _bounceParticle: 1
-  _gravityForce: 0.01
+  _gravityForce: 0.05
   _friction: 0.01
   _spacing: 1
-  _massMatters: 1
+  _massMatters: 0
   _dirMult: 1
-  _particleSize: 9
+  _particleSize: 10
   _randomSize: 1
   _particleColor: {r: 1, g: 1, b: 1, a: 1}
   _randomColor: 1

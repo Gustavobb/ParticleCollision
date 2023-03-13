@@ -264,7 +264,6 @@ void ParticlesKernel(uint3 id : SV_DispatchThreadID)
     else ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
 
     WallCollision(particle.position, particle.velocity, particle.size);
-
     particlesBuffer[id.x] = particle;
 }
 
