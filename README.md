@@ -1,9 +1,9 @@
 Also hosted on [itch.io](https://gubebra.itch.io/particle-collider-2d)
 
-![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU3NDQ3Mi5naWY=/original/zHvzPk.gif)
-![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU3NDU3Ny5naWY=/original/XF39IL.gif)
-![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU3NDUwOS5naWY=/original/ukz%2B8Q.gif)
-![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU3NDU3Mi5naWY=/original/P3aLbQ.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzI3NS5naWY=/original/BANkUe.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzMwNC5naWY=/original/WJsDlx.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzI4NC5naWY=/original/maouI1.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzI0Ny5naWY=/original/BOA7hW.gif)
 
 ## ParticleCollision
 ParticleCollision is a particle physics simulation that uses Unity and compute shaders to simulate particle interactions. The simulation is entirely GPU-based, meaning that it is computationally efficient and can handle large numbers of particles without a significant performance hit. The project is entirely code-generated, and it does not require any assets or images to run.
@@ -27,7 +27,6 @@ or
 The ParticleCollision project is not finished yet, some features I plan on developing:
 
 - Fixing spatial partitioning.
-- Fixing mass matters when particles are falling.
 - Adding support for device rotation in mobile.
 - Adding static objects for the particle to collide.
 

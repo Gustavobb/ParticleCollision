@@ -497,8 +497,8 @@ MonoBehaviour:
   _massMatters: 0
   _dirMult: 1
   _rezX: 1024
-  _particlesCount: 1024
-  _particleSize: 10
+  _particlesCount: 2048
+  _particleSize: 8
   _randomSize: 1
   _particleColor: {r: 1, g: 1, b: 1, a: 1}
   _randomColor: 1
