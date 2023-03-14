@@ -18,8 +18,6 @@ public class ParticleCollision2D : MonoBehaviour
     private const float MIN_STEPS_MOD = 1f;
     [Range(MIN_STEPS_MOD, MAX_STEPS_MOD)]
     [SerializeField] private int _stepsMod = 1;
-    [SerializeField] private int _rezX = 512;
-    private Vector2 _rez;
     [SerializeField] private bool _dynamicVariables = false;
     [SerializeField] private bool _isPlaying = true;
 
@@ -35,14 +33,9 @@ public class ParticleCollision2D : MonoBehaviour
     [SerializeField] private int _spatialRange = 1;
     [SerializeField] private bool _useSpatialPartitioning = false;
 
-    private const int MAX_PARTICLES_COUNT = 1000000;
-    private const int MIN_PARTICLES_COUNT = 64;
-    [Header("Rules")]
-    [Range(MIN_PARTICLES_COUNT, MAX_PARTICLES_COUNT)]
-    [SerializeField] private int _particlesCount = 1000;
-
     private const float MAX_BOUNCE = 5f;
     private const float MIN_BOUNCE = 0f;
+    [Header("Rules")]
     [Range(MIN_BOUNCE, MAX_BOUNCE)]
     [SerializeField] private float _bounceWall = 0f;
     
@@ -74,6 +67,15 @@ public class ParticleCollision2D : MonoBehaviour
     [Range(MIN_DIR_MULT, MAX_DIR_MULT)]
     [SerializeField] private float _dirMult = 1f;
 
+    [Header("Visuals")]
+    [SerializeField] private int _rezX = 512;
+    private Vector2 _rez;
+
+    private const int MAX_PARTICLES_COUNT = 1000000;
+    private const int MIN_PARTICLES_COUNT = 64;
+    [Range(MIN_PARTICLES_COUNT, MAX_PARTICLES_COUNT)]
+    [SerializeField] private int _particlesCount = 1000;
+
     private const int MAX_PARTICLE_SIZE = 20;
     private const int MIN_PARTICLE_SIZE = 2;
     [Range(MIN_PARTICLE_SIZE, MAX_PARTICLE_SIZE)]
@@ -83,8 +85,19 @@ public class ParticleCollision2D : MonoBehaviour
     [SerializeField] private Color _particleColor = Color.blue;
     [SerializeField] private bool _randomColor = false;
 
+    private const float MAX_COLOR_DECAY = 1f;
+    private const float MIN_COLOR_DECAY = 0f;
+    [Range(MIN_COLOR_DECAY, MAX_COLOR_DECAY)]
+    [SerializeField] private float _colorDecay = 1f;
+
+    private const float MAX_CIRCLE_SMOOTH = 1f;
+    private const float MIN_CIRCLE_SMOOTH = 0f;
+    [Range(MIN_CIRCLE_SMOOTH, MAX_CIRCLE_SMOOTH)]
+    [SerializeField] private float _circleSmooth = 1f;
+
     private const float MAX_MOUSE_RADIUS = 1f;
     private const float MIN_MOUSE_RADIUS = 0f;
+    [Header("Mouse interaction")]
     [Range(MIN_MOUSE_RADIUS, MAX_MOUSE_RADIUS)]
     [SerializeField] private float _mouseRadius = .1f;
 
@@ -100,11 +113,6 @@ public class ParticleCollision2D : MonoBehaviour
     private const float MIN_MOUSE_RADIUS_MULTIPLIER = 0f;
     [Range(MIN_MOUSE_RADIUS_MULTIPLIER, MAX_MOUSE_RADIUS_MULTIPLIER)]
     [SerializeField] private float _mouseRadiusMultiplier = 1f;
-
-    private const float MAX_COLOR_DECAY = 1f;
-    private const float MIN_COLOR_DECAY = 0f;
-    [Range(MIN_COLOR_DECAY, MAX_COLOR_DECAY)]
-    [SerializeField] private float _colorDecay = 1f;
 
     [System.Serializable]
     private class RDTexture
@@ -211,6 +219,7 @@ public class ParticleCollision2D : MonoBehaviour
             _shader.SetBuffer(_resetSpatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
             _shader.Dispatch(_resetSpatialPartitionKernel, _spatialPartitionBufferSize / 64, 1, 1);
 
+            _shader.SetTexture(_spatialPartitionKernel, "outTexture", _outTexture);
             _shader.SetBuffer(_spatialPartitionKernel, "particlesBufferRead", _particlesBufferRead);
             _shader.SetBuffer(_spatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
             _shader.Dispatch(_spatialPartitionKernel, _particlesCount / 64, 1, 1);
@@ -288,6 +297,7 @@ public class ParticleCollision2D : MonoBehaviour
         _shader.SetFloat("gravityForce", _gravityForce);
         _shader.SetFloat("bounceParticle", _bounceParticle);
         _shader.SetFloat("colorDecay", _colorDecay);
+        _shader.SetFloat("circleSmooth", _circleSmooth);
     }
 
     private Vector2 GetThreadGroupSize()

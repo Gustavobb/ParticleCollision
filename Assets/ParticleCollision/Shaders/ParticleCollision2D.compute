@@ -44,6 +44,7 @@ float bounceWall;
 float friction;
 float spacing;
 float dirMult;
+float circleSmooth;
 
 int particleSize;
 bool randomSize;
@@ -72,8 +73,9 @@ float ParticleMass(int size)
     return lerp(1, m, massMatters);
 }
 
-void DrawCircle(int2 center, int radius, float4 color)
+void DrawCircle(float2 center, int radius, float4 color)
 {
+    int2 c = round(center);
     float mag, strength;
     for (int i = -radius; i <= radius; i++)
     {
@@ -83,7 +85,8 @@ void DrawCircle(int2 center, int radius, float4 color)
             if (mag < radius)
             {
                 strength = 1 - mag / radius;
-                outTexture[center + int2(i, j)] = float4(color.xyz * strength, 1);
+                strength = lerp(1, strength, circleSmooth);
+                outTexture[c + int2(i, j)] = float4(color.xyz * strength, 1);
                 continue;
             }
         }
@@ -155,14 +158,14 @@ void IterateColllision(inout float2 position, inout float2 velocity, int size, u
 {
     if (i == id)
         return;
-    
+
     Particle other = particlesBufferRead[i];
     float2 diff = position - other.position;
     float rad = (size + other.size) * spacing;
     float mag = length(diff);
     
     if (mag >= rad) return;
-    
+        
     float m1 = ParticleMass(size);
     float m2 = ParticleMass(other.size);
     float rel = 1 - m1 / (m1 + m2);
@@ -245,7 +248,15 @@ void SpatialPartitionKernel(uint3 id : SV_DispatchThreadID)
     
     float hash = random(id.x * id.x * .0001 + time * .001);
     int index = round(hash * (MAX_PARTICLES_PER_CELL - 1));
+
     spatialPartitionBuffer[arrayIndex + index] = id.x;
+
+    // debug
+    if (cell.x % spatialDivisions == 0 && cell.y % spatialDivisions == 0)
+        DrawCircle(particle.position, particle.size, float4(1, 0, 0, 1));
+    
+    else
+        DrawCircle(particle.position, particle.size, float4(0, 0, 1, 1));
 }
 
 [numthreads(64, 1, 1)]
@@ -256,7 +267,6 @@ void ParticlesKernel(uint3 id : SV_DispatchThreadID)
     // - Add mass (gravity, friction, bounceness, etc)
 
     Particle particle = particlesBufferRead[id.x];
-
     AddGravity(particle.velocity, particle.size);
     AddFriction(particle.velocity);
     AddMouseForce(particle.velocity, particle.position);
@@ -264,8 +274,8 @@ void ParticlesKernel(uint3 id : SV_DispatchThreadID)
 
     if (useSpatialPartitioning) ParticleCollisionGrid(particle.position, particle.velocity, particle.size, id.x);
     else ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
-
     WallCollision(particle.position, particle.velocity, particle.size);
+
     particlesBuffer[id.x] = particle;
 }
 
@@ -281,7 +291,7 @@ void RenderKernel(uint3 id : SV_DispatchThreadID)
     float3 color = outTexture[id.xy].xyz * (1 - colorDecay);
     outTexture[id.xy] = float4(color, 1);
 
-    if (MousePixelDist((float2) id.xy) < mouseRadius) 
+    if (MousePixelDist((float2) id.xy) < mouseRadius)
     {
         outTexture[id.xy] = hsb2rgb(float3(1, 0, .2));
 
@@ -291,11 +301,16 @@ void RenderKernel(uint3 id : SV_DispatchThreadID)
         if (mouseTrigger.y > 0)
             outTexture[id.xy] = hsb2rgb(float3(.3, .5, .3));
     }
+
+    // debug grid
+    // uint2 cell = id.xy / (rez / spatialDivisions);
+    // if (cell.x % spatialDivisions == 0 && cell.y % spatialDivisions == 0)
+    //     outTexture[id.xy] = float4(1, 1, 1, 1);
 }
 
 [numthreads(64, 1, 1)]
 void ParticlesRenderKernel(uint3 id : SV_DispatchThreadID)
 {
     Particle particle = particlesBufferRead[id.x];
-    DrawCircle(round(particle.position), particle.size, particle.color * particleColor);
+    // DrawCircle(particle.position, particle.size, particle.color * particleColor);
 }

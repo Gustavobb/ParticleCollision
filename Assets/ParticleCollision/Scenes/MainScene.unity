@@ -482,29 +482,30 @@ MonoBehaviour:
   _image: {fileID: 499535570}
   _stepsFrame: 1
   _stepsMod: 1
-  _rezX: 1024
   _dynamicVariables: 1
   _isPlaying: 1
   _spatialDivisions: 8
   _spatialRange: 1
-  _useSpatialPartitioning: 0
-  _particlesCount: 1920
+  _useSpatialPartitioning: 1
   _bounceWall: 0
   _bounceParticle: 1
-  _gravityForce: 0.03
+  _gravityForce: 0.022
   _friction: 0.01
   _spacing: 1
-  _massMatters: 0
+  _massMatters: 1
   _dirMult: 1
+  _rezX: 1024
+  _particlesCount: 1920
   _particleSize: 10
   _randomSize: 1
   _particleColor: {r: 1, g: 1, b: 1, a: 1}
   _randomColor: 1
+  _colorDecay: 1
+  _circleSmooth: 1
   _mouseRadius: 0.05
   _mouseStrengthX: 1
   _mouseStrengthY: 1
   _mouseRadiusMultiplier: 1.5
-  _colorDecay: 0.3
   _rdTextures:
   - texture: {fileID: 1769140854}
     name: outTexture
