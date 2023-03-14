@@ -486,21 +486,23 @@ MonoBehaviour:
   _isPlaying: 1
   _spatialDivisions: 8
   _spatialRange: 1
-  _useSpatialPartitioning: 1
+  _useSpatialPartitioning: 0
   _bounceWall: 0
+  _wallPortionX: 1
+  _wallPortionY: 1
   _bounceParticle: 1
-  _gravityForce: 0.022
+  _gravityForce: 0.01
   _friction: 0.01
   _spacing: 1
-  _massMatters: 1
+  _massMatters: 0
   _dirMult: 1
   _rezX: 1024
-  _particlesCount: 1920
+  _particlesCount: 1024
   _particleSize: 10
   _randomSize: 1
   _particleColor: {r: 1, g: 1, b: 1, a: 1}
   _randomColor: 1
-  _colorDecay: 1
+  _colorDecay: 0.311
   _circleSmooth: 1
   _mouseRadius: 0.05
   _mouseStrengthX: 1

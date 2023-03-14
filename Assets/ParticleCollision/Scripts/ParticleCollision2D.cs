@@ -39,6 +39,13 @@ public class ParticleCollision2D : MonoBehaviour
     [Range(MIN_BOUNCE, MAX_BOUNCE)]
     [SerializeField] private float _bounceWall = 0f;
     
+    private const float MAX_WALL_PORTION = 1f;
+    private const float MIN_WALL_PORTION = .5f;
+    [Range(MIN_WALL_PORTION, MAX_WALL_PORTION)]
+    [SerializeField] private float _wallPortionX = 1f;
+    [Range(MIN_WALL_PORTION, MAX_WALL_PORTION)]
+    [SerializeField] private float _wallPortionY = 1f;
+
     [Range(MIN_BOUNCE, MAX_BOUNCE)]
     [SerializeField] private float _bounceParticle = 1f;
 
@@ -208,7 +215,6 @@ public class ParticleCollision2D : MonoBehaviour
         HandleTouch();
         if (_dynamicVariables) SetRules();
         GPUParticlesKernel();
-        UpdateBufferKernel();
         Render();
     }
 
@@ -219,7 +225,6 @@ public class ParticleCollision2D : MonoBehaviour
             _shader.SetBuffer(_resetSpatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
             _shader.Dispatch(_resetSpatialPartitionKernel, _spatialPartitionBufferSize / 64, 1, 1);
 
-            _shader.SetTexture(_spatialPartitionKernel, "outTexture", _outTexture);
             _shader.SetBuffer(_spatialPartitionKernel, "particlesBufferRead", _particlesBufferRead);
             _shader.SetBuffer(_spatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
             _shader.Dispatch(_spatialPartitionKernel, _particlesCount / 64, 1, 1);
@@ -228,8 +233,8 @@ public class ParticleCollision2D : MonoBehaviour
         _shader.SetBuffer(_particlesKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
         _shader.SetBuffer(_particlesKernel, "particlesBuffer", _particlesBuffer);
         _shader.SetBuffer(_particlesKernel, "particlesBufferRead", _particlesBufferRead);
-
         _shader.Dispatch(_particlesKernel, _particlesCount / 64, 1, 1);
+        UpdateBufferKernel();
     }
 
     private void UpdateBufferKernel()
@@ -293,6 +298,7 @@ public class ParticleCollision2D : MonoBehaviour
         _shader.SetFloat("spacing", _spacing);
         _shader.SetFloat("friction", _friction);
         _shader.SetFloat("bounceWall", _bounceWall);
+        _shader.SetVector("wallPortion", new Vector2(_wallPortionX, _wallPortionY));
         _shader.SetFloat("mouseRadius", _mouseRadius);
         _shader.SetFloat("gravityForce", _gravityForce);
         _shader.SetFloat("bounceParticle", _bounceParticle);

@@ -36,6 +36,7 @@ int spatialRange;
 uint spatialDivisions;
 bool useSpatialPartitioning;
 
+float2 wallPortion;
 float bounceParticle;
 float gravityForce;
 float massMatters;
@@ -129,25 +130,28 @@ void AddMouseForce(inout float2 velocity, float2 position)
 
 void WallCollision(inout float2 position, inout float2 velocity, int size)
 {
-    if (position.x < size)
+    float sizeWallY = rez.y * (1 - wallPortion.y);
+    float sizeWallX = rez.x * (1 - wallPortion.x);
+
+    if (position.x < size + sizeWallX)
     {
-        position.x = size;
+        position.x = size + sizeWallX;
         velocity.x = -velocity.x * bounceWall;
     }
-    else if (position.x > rez.x - size)
+    else if (position.x > rez.x - size - sizeWallX)
     {
-        position.x = rez.x - size;
+        position.x = rez.x - size - sizeWallX;
         velocity.x = -velocity.x * bounceWall;
     }
 
-    if (position.y < size)
+    if (position.y < size + sizeWallY)
     {
-        position.y = size;
+        position.y = size + sizeWallY;
         velocity.y = -velocity.y * bounceWall;
     }
-    else if (position.y > rez.y - size)
+    else if (position.y > rez.y - size - sizeWallY)
     {
-        position.y = rez.y - size;
+        position.y = rez.y - size - sizeWallY;
         velocity.y = -velocity.y * bounceWall;
     }
     
@@ -165,15 +169,15 @@ void IterateColllision(inout float2 position, inout float2 velocity, int size, u
     float mag = length(diff);
     
     if (mag >= rad) return;
-        
+    
     float m1 = ParticleMass(size);
     float m2 = ParticleMass(other.size);
     float rel = 1 - m1 / (m1 + m2);
 
     float overlap = (rad - mag) * rel;
     float2 dir = normalize(diff) * overlap * dirMult;
-    position += dir;
     
+    // position += dir;
     // velocity = (m1 - m2) / (m1 + m2) * velocity + (2 * m2) / (m1 + m2) * other.velocity;
     velocity += dir * bounceParticle;
     velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
@@ -250,32 +254,24 @@ void SpatialPartitionKernel(uint3 id : SV_DispatchThreadID)
     int index = round(hash * (MAX_PARTICLES_PER_CELL - 1));
 
     spatialPartitionBuffer[arrayIndex + index] = id.x;
-
-    // debug
-    if (cell.x % spatialDivisions == 0 && cell.y % spatialDivisions == 0)
-        DrawCircle(particle.position, particle.size, float4(1, 0, 0, 1));
-    
-    else
-        DrawCircle(particle.position, particle.size, float4(0, 0, 1, 1));
 }
 
 [numthreads(64, 1, 1)]
 void ParticlesKernel(uint3 id : SV_DispatchThreadID)
 {
     // TODO:
-    // - Add kd tree
-    // - Add mass (gravity, friction, bounceness, etc)
+    // - Fix grid collision
 
     Particle particle = particlesBufferRead[id.x];
     AddGravity(particle.velocity, particle.size);
     AddFriction(particle.velocity);
     AddMouseForce(particle.velocity, particle.position);
-    particle.position += particle.velocity;
 
     if (useSpatialPartitioning) ParticleCollisionGrid(particle.position, particle.velocity, particle.size, id.x);
     else ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
-    WallCollision(particle.position, particle.velocity, particle.size);
 
+    particle.position += particle.velocity;
+    WallCollision(particle.position, particle.velocity, particle.size);
     particlesBuffer[id.x] = particle;
 }
 
@@ -312,5 +308,5 @@ void RenderKernel(uint3 id : SV_DispatchThreadID)
 void ParticlesRenderKernel(uint3 id : SV_DispatchThreadID)
 {
     Particle particle = particlesBufferRead[id.x];
-    // DrawCircle(particle.position, particle.size, particle.color * particleColor);
+    DrawCircle(particle.position, particle.size, particle.color * particleColor);
 }
