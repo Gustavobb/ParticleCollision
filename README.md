@@ -1,9 +1,11 @@
 Also hosted on [itch.io](https://gubebra.itch.io/particle-collider-2d)
 
-![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzI3NS5naWY=/original/BANkUe.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTYwODcxMS5naWY=/original/FCpsHx.gif)
 ![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzMwNC5naWY=/original/WJsDlx.gif)
-![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzI4NC5naWY=/original/maouI1.gif)
-![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzI0Ny5naWY=/original/BOA7hW.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTU4MzI3NS5naWY=/original/BANkUe.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTYwODY4Mi5naWY=/original/2H%2FrPn.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTYwODc5My5naWY=/original/tUWsV5.gif)
+![Alt Text](https://img.itch.zone/aW1hZ2UvMTk2ODUwNi8xMTYwODgxNy5naWY=/original/8%2FJC2e.gif)
 
 ## ParticleCollision
 ParticleCollision is a particle physics simulation that uses Unity and compute shaders to simulate particle interactions. The simulation is entirely GPU-based, meaning that it is computationally efficient and can handle large numbers of particles without a significant performance hit. The project is entirely code-generated, and it does not require any assets or images to run.
