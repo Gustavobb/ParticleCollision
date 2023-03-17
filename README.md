@@ -30,7 +30,6 @@ The ParticleCollision project is not finished yet, some features I plan on devel
 
 - Fixing spatial partitioning.
 - Adding support for device rotation in mobile.
-- Adding static objects for the particle to collide.
 
 ## Contributing
 Contributions to the ParticleCollision project are welcome. If you have an idea for how to improve the simulation or would like to add a new feature, feel free to submit a pull request.
