@@ -6,14 +6,14 @@
 #pragma kernel UpdateBufferKernel
 
 #pragma kernel RenderKernel
-#pragma kernel ParticlesRenderKernel
 
 #define MAX_PARTICLES_PER_CELL 128
 #define MAX_PARTICLE_VELOCITY_MAG 3
-#define MIN_PARTICLE_SIZE 3
+#define MIN_PARTICLE_SIZE 2
 #include "Utils.cginc"
 
 RWTexture2D<float4> outTexture;
+RWTexture2D<float4> obstacleTexture;
 
 struct Particle
 {
@@ -27,38 +27,47 @@ RWStructuredBuffer<Particle> particlesBufferRead;
 RWStructuredBuffer<Particle> particlesBuffer;
 RWStructuredBuffer<int> spatialPartitionBuffer;
 
-float2 rez;
 uint time;
-uint particlesCount;
 float deltaTime;
 
 int spatialRange;
 uint spatialDivisions;
 bool useSpatialPartitioning;
 
-float2 wallPortion;
-float bounceParticle;
 float gravityForce;
-float massMatters;
-float colorDecay;
-float bounceWall;
 float friction;
+float massMatters;
+float bounceWall;
+float bounceObstacles;
+float bounceParticle;
+float2 wallPortion;
 float spacing;
 float dirMult;
-float circleSmooth;
+bool collideWithObstacles;
 
+float2 rez;
+uint particlesCount;
+float colorDecay;
 int particleSize;
-bool randomSize;
-
+float4 obstacleColor;
 float4 particleColor;
+bool randomSize;
 bool randomColor;
 
+float circleSmooth;
+int circleRenderType;
+float4 circlePercentage;
+
+bool useMouseToCreateObstacles;
 float2 mouseStrength;
 float2 mouseTrigger;
 float2 mouseUV;
-float mouseRadiusMultiplier;
-float mouseRadius;
+float2 mouseRadius;
+float4 mouseColor;
+float4 mouseRightClickColor;
+float4 mouseLeftClickColor;
 
+//// MOUSE --->
 float MousePixelDist(float2 p)
 {
     float aspect = rez.x / rez.y;
@@ -68,30 +77,92 @@ float MousePixelDist(float2 p)
     return length(diff);
 }
 
-float ParticleMass(int size)
+void RenderMouseTrigger(uint2 id, float trigger, float4 colorObstacle, float4 colorOut)
 {
-    float m = size / (float) particleSize;
-    return lerp(1, m, massMatters);
+    if (trigger == 0) return;
+    if (!useMouseToCreateObstacles)
+    {
+        outTexture[id] = colorOut + obstacleTexture[id];
+        return;
+    }
+
+    obstacleTexture[id] = colorObstacle;
+}
+
+void RenderMouseInteraction(uint2 id)
+{
+    if (MousePixelDist((float2) id.xy) >= mouseRadius.x) return;
+    outTexture[id.xy] = mouseColor;
+    RenderMouseTrigger(id, mouseTrigger.x, obstacleColor, mouseLeftClickColor);
+    RenderMouseTrigger(id, mouseTrigger.y, float4(0, 0, 0, 1), mouseRightClickColor);
+}
+
+void AddMouseForce(inout float2 velocity, float2 position)
+{
+    if (MousePixelDist(position) >= mouseRadius.x * mouseRadius.y) return;
+    float2 dir = normalize(mouseUV - position / rez);
+    // float strength = 1 - d / mouseRadius.x;
+
+    if (mouseTrigger.x > 0)
+    {
+        velocity += dir;
+        velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG) * mouseStrength.x;
+    }
+    
+    else if (mouseTrigger.y > 0)
+    {
+        velocity -= dir;
+        velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG) * mouseStrength.y;
+    }
+}
+//// MOUSE <---
+
+/// RENDER --->
+bool PixelInsideCircleType(float mag, float radius)
+{
+    float rx = radius * circlePercentage.x;
+    float ry = radius * circlePercentage.y;
+    float rz = radius * circlePercentage.z;
+    float rw = radius * circlePercentage.w;
+
+    return (mag < radius) * (circleRenderType == 0) + 
+    (mag < rx && mag > ry) * (circleRenderType == 1) +
+    ((mag < rx && mag > ry) || mag < rz || mag == round(rw)) * (circleRenderType == 2) +
+    (mag == round(rx) || mag == round(ry)) * (circleRenderType == 3) + 
+    (mag == round(rx) || mag == round(ry) || mag < rz) * (circleRenderType == 4) +
+    (mag < rx || mag < ry) * (circleRenderType == 5);
 }
 
 void DrawCircle(float2 center, int radius, float4 color)
 {
     int2 c = round(center);
+
+    if (radius <= 1)
+    {
+        outTexture[c] = color;
+        return;
+    }
+    
     float mag, strength;
     for (int i = -radius; i <= radius; i++)
     {
         for (int j = -radius; j <= radius; j++)
         {
             mag = length(float2(i, j));
-            if (mag < radius)
-            {
-                strength = 1 - mag / radius;
-                strength = lerp(1, strength, circleSmooth);
-                outTexture[c + int2(i, j)] = float4(color.xyz * strength, 1);
-                continue;
-            }
+            if (!PixelInsideCircleType(mag, radius)) continue;
+            strength = 1 - mag / radius;
+            strength = lerp(1, strength, circleSmooth);
+            outTexture[c + int2(i, j)] = float4(color.xyz * strength, 1);
         }
     }
+}
+/// RENDER <---
+
+/// PHYSICS --->
+float ParticleMass(int size)
+{
+    float m = size / (float) particleSize;
+    return lerp(1, m, massMatters);
 }
 
 void AddGravity(inout float2 velocity, int size)
@@ -106,26 +177,106 @@ void AddFriction(inout float2 velocity)
     velocity *= (1 - friction);
     velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
 }
+/// PHYSICS <---
 
-void AddMouseForce(inout float2 velocity, float2 position)
+/// COLLISION --->
+void IterateColllision(inout float2 position, inout float2 velocity, int size, uint id, uint i)
 {
-    if (MousePixelDist(position) < mouseRadius * mouseRadiusMultiplier)
-    {
-        float2 dir = normalize(mouseUV - position / rez);
-        // float strength = 1 - d / mouseRadius;
+    if (i == id)
+        return;
 
-        if (mouseTrigger.x > 0)
+    Particle other = particlesBufferRead[i];
+    float2 diff = position - other.position;
+    float rad = (size + other.size) * spacing;
+    float mag = length(diff);
+
+    if (mag >= rad) return;
+    
+    float m1 = ParticleMass(size);
+    float m2 = ParticleMass(other.size);
+    float rel = 1 - m1 / (m1 + m2);
+
+    float overlap = (rad - mag) * rel;
+    float2 dir = normalize(diff) * overlap * dirMult;
+    
+    velocity += dir * bounceParticle;
+    velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
+}
+
+void ParticleCollision(float2 position, inout float2 velocity, int size, uint id)
+{
+    for (uint i = 0; i < particlesCount; i++)
+        IterateColllision(position, velocity, size, id, i);
+}
+
+void ParticleCollisionGrid(float2 position, inout float2 velocity, int size, uint id)
+{
+    int particleIndex;
+    int2 sSize = rez / spatialDivisions;
+    uint2 cell = floor(position / sSize);
+    uint cellX, startIndex;
+
+    for (int i = -spatialRange; i <= spatialRange; i ++)
+    {
+        cellX = (cell.x + i) % spatialDivisions;
+        for (int j = -spatialRange; j <= spatialRange; j ++)
         {
-            velocity += dir;
-            velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG) * mouseStrength.x;
-        }
-        
-        if (mouseTrigger.y > 0)
-        {
-            velocity -= dir;
-            velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG) * mouseStrength.y;
+            startIndex = (cellX + (cell.y + j) % spatialDivisions * spatialDivisions) * MAX_PARTICLES_PER_CELL;
+            
+            for (uint k = 0; k < MAX_PARTICLES_PER_CELL; k ++)
+            {
+                particleIndex = spatialPartitionBuffer[startIndex + k];
+                if (particleIndex == -1) continue;
+                IterateColllision(position, velocity, size, id, particleIndex);
+            }
         }
     }
+}
+
+void ObstacleCollision(inout float2 position, inout float2 velocity, int size)
+{
+    int arraySize = 4;
+    float2 corners[4];
+    float2 collisions[4];
+
+    corners[0] = position + float2(-size, 0);
+    corners[1] = position + float2(size, 0);
+    corners[2] = position + float2(0, -size);
+    corners[3] = position + float2(0, size);
+
+    float2 col = 0;
+    float2 dir, pos;
+    bool trapped = true;
+
+    for (int k = 0; k < arraySize; k++)
+    {
+        pos = corners[k];
+        dir = normalize(position - corners[k]);
+        bool hit = false;
+
+        while (obstacleTexture[int2(pos) - dir].x > 0 && length(pos - corners[k]) < length(position - rez * dir))
+        {
+            hit = true;
+            pos += dir;
+        }
+
+        trapped = trapped && hit;
+        collisions[k] = (pos - corners[k]);
+        col += collisions[k];
+    }
+
+    if (length(col) == 0) return;
+
+    col /= arraySize;
+    if (trapped)
+    {
+        float r = random(position.x * .0001 + time * .001);
+        col = collisions[(int) (r * arraySize)];
+    }
+
+    position += col;
+    velocity = normalize(col) * bounceObstacles;
+    velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
 }
 
 void WallCollision(inout float2 position, inout float2 velocity, int size)
@@ -157,62 +308,9 @@ void WallCollision(inout float2 position, inout float2 velocity, int size)
     
     velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
 }
+/// COLLISION <---
 
-void IterateColllision(inout float2 position, inout float2 velocity, int size, uint id, uint i)
-{
-    if (i == id)
-        return;
-
-    Particle other = particlesBufferRead[i];
-    float2 diff = position - other.position;
-    float rad = (size + other.size) * spacing;
-    float mag = length(diff);
-    
-    if (mag >= rad) return;
-    
-    float m1 = ParticleMass(size);
-    float m2 = ParticleMass(other.size);
-    float rel = 1 - m1 / (m1 + m2);
-
-    float overlap = (rad - mag) * rel;
-    float2 dir = normalize(diff) * overlap * dirMult;
-    
-    // position += dir;
-    // velocity = (m1 - m2) / (m1 + m2) * velocity + (2 * m2) / (m1 + m2) * other.velocity;
-    velocity += dir * bounceParticle;
-    velocity = clamp(velocity, -MAX_PARTICLE_VELOCITY_MAG, MAX_PARTICLE_VELOCITY_MAG);
-}
-
-void ParticleCollision(inout float2 position, inout float2 velocity, int size, uint id)
-{
-    for (uint i = 0; i < particlesCount; i++)
-        IterateColllision(position, velocity, size, id, i);
-}
-
-void ParticleCollisionGrid(inout float2 position, inout float2 velocity, int size, uint id)
-{
-    int particleIndex;
-    int2 sSize = rez / spatialDivisions;
-    uint2 cell = floor(position / sSize);
-    uint cellX, startIndex;
-
-    for (int i = -spatialRange; i <= spatialRange; i ++)
-    {
-        cellX = (cell.x + i) % spatialDivisions;
-        for (int j = -spatialRange; j <= spatialRange; j ++)
-        {
-            startIndex = (cellX + (cell.y + j) % spatialDivisions * spatialDivisions) * MAX_PARTICLES_PER_CELL;
-            
-            for (uint k = 0; k < MAX_PARTICLES_PER_CELL; k ++)
-            {
-                particleIndex = spatialPartitionBuffer[startIndex + k];
-                if (particleIndex == -1) continue;
-                IterateColllision(position, velocity, size, id, particleIndex);
-            }
-        }
-    }
-}
-
+/// KERNELS --->
 [numthreads(64, 1, 1)]
 void ResetParticlesKernel(uint3 id : SV_DispatchThreadID)
 {
@@ -225,7 +323,7 @@ void ResetParticlesKernel(uint3 id : SV_DispatchThreadID)
 
     particle.color = particleColor;
     if (randomColor)
-        particle.color = float4(HUEtoRGB(rand), 1);
+        particle.color = HUEtoRGB(rand);
 
     particle.size = particleSize;
     if (randomSize)
@@ -250,7 +348,9 @@ void SpatialPartitionKernel(uint3 id : SV_DispatchThreadID)
     uint2 cell = floor(particle.position / sSize);
     int arrayIndex = (cell.x + cell.y * spatialDivisions) * MAX_PARTICLES_PER_CELL;
     
-    float hash = random(id.x * id.x * .0001 + time * .001);
+    // Fix grid collision
+    // CONCLUSION: Hash function is not good enough for this purpose, since every particle need to have unique id. If a particle is left out, a cascade effect will occur.
+    float hash = random(id.x);
     int index = round(hash * (MAX_PARTICLES_PER_CELL - 1));
 
     spatialPartitionBuffer[arrayIndex + index] = id.x;
@@ -259,19 +359,19 @@ void SpatialPartitionKernel(uint3 id : SV_DispatchThreadID)
 [numthreads(64, 1, 1)]
 void ParticlesKernel(uint3 id : SV_DispatchThreadID)
 {
-    // TODO:
-    // - Fix grid collision
-
     Particle particle = particlesBufferRead[id.x];
     AddGravity(particle.velocity, particle.size);
     AddFriction(particle.velocity);
-    AddMouseForce(particle.velocity, particle.position);
+    if (!useMouseToCreateObstacles) AddMouseForce(particle.velocity, particle.position);
 
     if (useSpatialPartitioning) ParticleCollisionGrid(particle.position, particle.velocity, particle.size, id.x);
     else ParticleCollision(particle.position, particle.velocity, particle.size, id.x);
 
     particle.position += particle.velocity;
+    if (collideWithObstacles) ObstacleCollision(particle.position, particle.velocity, particle.size);
     WallCollision(particle.position, particle.velocity, particle.size);
+
+    DrawCircle(particle.position, particle.size, particle.color * particleColor);
     particlesBuffer[id.x] = particle;
 }
 
@@ -284,29 +384,14 @@ void UpdateBufferKernel(uint3 id : SV_DispatchThreadID)
 [numthreads(32, 32, 1)]
 void RenderKernel(uint3 id : SV_DispatchThreadID)
 {
-    float3 color = outTexture[id.xy].xyz * (1 - colorDecay);
-    outTexture[id.xy] = float4(color, 1);
+    float3 obstacleColor = obstacleTexture[id.xy].xyz;
+    float3 outColor = outTexture[id.xy].xyz;
 
-    if (MousePixelDist((float2) id.xy) < mouseRadius)
-    {
-        outTexture[id.xy] = hsb2rgb(float3(1, 0, .2));
+    obstacleTexture[id.xy] = float4(obstacleColor, 1);
 
-        if (mouseTrigger.x > 0)
-            outTexture[id.xy] = hsb2rgb(float3(.8, .5, .3));
-        
-        if (mouseTrigger.y > 0)
-            outTexture[id.xy] = hsb2rgb(float3(.3, .5, .3));
-    }
-
-    // debug grid
-    // uint2 cell = id.xy / (rez / spatialDivisions);
-    // if (cell.x % spatialDivisions == 0 && cell.y % spatialDivisions == 0)
-    //     outTexture[id.xy] = float4(1, 1, 1, 1);
+    float3 color = outColor * (1 - colorDecay);
+    color += obstacleColor;
+    outTexture[id.xy] = float4(saturate(color), 1);
+    RenderMouseInteraction(id.xy);
 }
-
-[numthreads(64, 1, 1)]
-void ParticlesRenderKernel(uint3 id : SV_DispatchThreadID)
-{
-    Particle particle = particlesBufferRead[id.x];
-    DrawCircle(particle.position, particle.size, particle.color * particleColor);
-}
+/// KERNELS <---

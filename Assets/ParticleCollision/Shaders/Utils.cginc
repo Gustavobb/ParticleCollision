@@ -17,39 +17,15 @@ float4 hsb2rgb(float3 c)
 }
 
 // http://www.chilliant.com/rgb2hsv.html
-float3 HUEtoRGB(in float H)
+float4 HUEtoRGB(in float H)
 {
     float R = abs(H * 6 - 3) - 1;
     float G = 2 - abs(H * 6 - 2);
     float B = 2 - abs(H * 6 - 4);
-    return saturate(float3(R, G, B));
-}
-
-float2 RandomDirection(float2 p)
-{
-	return normalize(2.0 * (Random(p) - 0.5));
+    return saturate(float4(R, G, B, 1));
 }
 
 float random (float2 st)
 {
     return frac(sin(dot(st.xy, float2(12.9898,78.233)))* 43758.5453123);
-}
-
-float VerticalMap(float idx, float scalePositive, float scaleNegative, float strength, int rez)
-{
-	float uvx = idx / rez;
-	return saturate(((scaleNegative - uvx) * (uvx - scalePositive)) * strength);
-}
-
-float HorizontalMap(float idy, float scalePositive, float scaleNegative, float strength, int rez)
-{
-	float uvy = idy / rez;
-	return saturate(((scaleNegative - uvy) * (uvy - scalePositive)) * strength);
-}
-
-float RadialMap(float2 id, float scalePositive, float scaleNegative, float strength, int rez)
-{
-	float2 uv = id / rez;
-	return saturate(((scaleNegative - uv.x) * (uv.x - scalePositive)) * 
-					((scaleNegative - uv.y) * (uv.y - scalePositive)) * strength);
 }

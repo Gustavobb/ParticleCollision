@@ -20,6 +20,7 @@ public class ParticleCollision2D : MonoBehaviour
     [SerializeField] private int _stepsMod = 1;
     [SerializeField] private bool _dynamicVariables = false;
     [SerializeField] private bool _isPlaying = true;
+    [SerializeField] private bool _resetObstacles = false;
 
     private const int MAX_SPATIAL_DIVISIONS = 30;
     private const int MIN_SPATIAL_DIVISIONS = 1;
@@ -33,24 +34,9 @@ public class ParticleCollision2D : MonoBehaviour
     [SerializeField] private int _spatialRange = 1;
     [SerializeField] private bool _useSpatialPartitioning = false;
 
-    private const float MAX_BOUNCE = 5f;
-    private const float MIN_BOUNCE = 0f;
-    [Header("Rules")]
-    [Range(MIN_BOUNCE, MAX_BOUNCE)]
-    [SerializeField] private float _bounceWall = 0f;
-    
-    private const float MAX_WALL_PORTION = 1f;
-    private const float MIN_WALL_PORTION = .5f;
-    [Range(MIN_WALL_PORTION, MAX_WALL_PORTION)]
-    [SerializeField] private float _wallPortionX = 1f;
-    [Range(MIN_WALL_PORTION, MAX_WALL_PORTION)]
-    [SerializeField] private float _wallPortionY = 1f;
-
-    [Range(MIN_BOUNCE, MAX_BOUNCE)]
-    [SerializeField] private float _bounceParticle = 1f;
-
     private const float MAX_GRAVITY = .3f;
     private const float MIN_GRAVITY = 0f;
+    [Header("Rules")]
     [Range(MIN_GRAVITY, MAX_GRAVITY)]
     [SerializeField] private float _gravityForce = 0.01f;
 
@@ -59,20 +45,37 @@ public class ParticleCollision2D : MonoBehaviour
     [Range(MIN_FRICTION, MAX_FRICTION)]
     [SerializeField] private float _friction = 0.01f;
 
-    private const float MAX_SPACING = 5f;
-    private const float MIN_SPACING = 0f;
-    [Range(MIN_SPACING, MAX_SPACING)]
-    [SerializeField] private float _spacing = 1f;
-
     private const float MAX_MASS_MATTERS = 1f;
     private const float MIN_MASS_MATTERS = 0f;
     [Range(MIN_MASS_MATTERS, MAX_MASS_MATTERS)]
     [SerializeField] private float _massMatters = 1f;
 
+    private const float MAX_BOUNCE = 5f;
+    private const float MIN_BOUNCE = 0f;
+    [Range(MIN_BOUNCE, MAX_BOUNCE)]
+    [SerializeField] private float _bounceWall = 0f;
+    [Range(MIN_BOUNCE, MAX_BOUNCE)]
+    [SerializeField] private float _bounceObstacles = 0f;
+    [Range(MIN_BOUNCE, MAX_BOUNCE)]
+    [SerializeField] private float _bounceParticle = 1f;
+    
+    private const float MAX_WALL_PORTION = 1f;
+    private const float MIN_WALL_PORTION = .5f;
+    [Range(MIN_WALL_PORTION, MAX_WALL_PORTION)]
+    [SerializeField] private float _wallPortionX = 1f;
+    [Range(MIN_WALL_PORTION, MAX_WALL_PORTION)]
+    [SerializeField] private float _wallPortionY = 1f;
+
+    private const float MAX_SPACING = 5f;
+    private const float MIN_SPACING = 0f;
+    [Range(MIN_SPACING, MAX_SPACING)]
+    [SerializeField] private float _spacing = 1f;
+
     private const float MAX_DIR_MULT = 5f;
     private const float MIN_DIR_MULT = 0f;
     [Range(MIN_DIR_MULT, MAX_DIR_MULT)]
     [SerializeField] private float _dirMult = 1f;
+    [SerializeField] private bool _collideWithObstacles = false;
 
     [Header("Visuals")]
     [SerializeField] private int _rezX = 512;
@@ -87,24 +90,52 @@ public class ParticleCollision2D : MonoBehaviour
     private const int MIN_PARTICLE_SIZE = 2;
     [Range(MIN_PARTICLE_SIZE, MAX_PARTICLE_SIZE)]
     [SerializeField] private int _particleSize = 6;
-    [SerializeField] private bool _randomSize = false;
-
-    [SerializeField] private Color _particleColor = Color.blue;
-    [SerializeField] private bool _randomColor = false;
 
     private const float MAX_COLOR_DECAY = 1f;
     private const float MIN_COLOR_DECAY = 0f;
     [Range(MIN_COLOR_DECAY, MAX_COLOR_DECAY)]
     [SerializeField] private float _colorDecay = 1f;
 
-    private const float MAX_CIRCLE_SMOOTH = 1f;
-    private const float MIN_CIRCLE_SMOOTH = 0f;
-    [Range(MIN_CIRCLE_SMOOTH, MAX_CIRCLE_SMOOTH)]
+
+    [SerializeField] private bool _randomSize = false;
+    [SerializeField] private bool _randomColor = false;
+    [SerializeField] private Color _particleColor = Color.blue;
+    [SerializeField] private Color _obstacleColor = Color.white;
+
+    private const float MAX_CIRCLE_PERCENTAGE = 1f;
+    private const float MIN_CIRCLE_PERCENTAGE = 0f;
+    [Header("Circle render visuals")]
+    [Range(MIN_CIRCLE_PERCENTAGE, MAX_CIRCLE_PERCENTAGE)]
     [SerializeField] private float _circleSmooth = 1f;
+
+    private enum CircleRenderType
+    {
+        SOLID,
+        OUTLINE,
+        SOLID_AND_OUTLINE,
+        STYLIZED_OUTLINE,
+        SOLID_AND_STYLIZED_OUTLINE,
+        SOLID_PERCENTAGE,
+    }
+    [SerializeField] private CircleRenderType _circleRenderType = CircleRenderType.SOLID;
+
+    [Range(MIN_CIRCLE_PERCENTAGE, MAX_CIRCLE_PERCENTAGE)]
+    [SerializeField] private float _circlePercentageX = 1f;
+
+    [Range(MIN_CIRCLE_PERCENTAGE, MAX_CIRCLE_PERCENTAGE)]
+    [SerializeField] private float _circlePercentageY = 1f;
+
+    [Range(MIN_CIRCLE_PERCENTAGE, MAX_CIRCLE_PERCENTAGE)]
+    [SerializeField] private float _circlePercentageZ = 1f;
+
+    [Range(MIN_CIRCLE_PERCENTAGE, MAX_CIRCLE_PERCENTAGE)]
+    [SerializeField] private float _circlePercentageW = 1f;
 
     private const float MAX_MOUSE_RADIUS = 1f;
     private const float MIN_MOUSE_RADIUS = 0f;
     [Header("Mouse interaction")]
+    [SerializeField] private bool _useMouseToCreateObstacles = false;
+
     [Range(MIN_MOUSE_RADIUS, MAX_MOUSE_RADIUS)]
     [SerializeField] private float _mouseRadius = .1f;
 
@@ -120,6 +151,9 @@ public class ParticleCollision2D : MonoBehaviour
     private const float MIN_MOUSE_RADIUS_MULTIPLIER = 0f;
     [Range(MIN_MOUSE_RADIUS_MULTIPLIER, MAX_MOUSE_RADIUS_MULTIPLIER)]
     [SerializeField] private float _mouseRadiusMultiplier = 1f;
+    [SerializeField] private Color _mouseColor = Color.white;
+    [SerializeField] private Color _mouseRightClickColor = Color.red;
+    [SerializeField] private Color _mouseLeftClickColor = Color.green;
 
     [System.Serializable]
     private class RDTexture
@@ -130,11 +164,10 @@ public class ParticleCollision2D : MonoBehaviour
 
     [SerializeField] private  List<RDTexture> _rdTextures = new List<RDTexture>();
     private List<ComputeBuffer> _buffers;
-    private List<RenderTexture> _textures;
     private ComputeBuffer _particlesBuffer, _particlesBufferRead, _spatialPartitionBuffer;
-    private RenderTexture _outTexture;
+    private RenderTexture _outTexture, _obstacleTexture;
     private Camera _camera;
-    private int _particlesRenderKernel, _renderKernel, _particlesKernel, _spatialPartitionKernel, _resetSpatialPartitionKernel, _updateBufferKernel, _spatialPartitionBufferSize;
+    private int _renderKernel, _particlesKernel, _spatialPartitionKernel, _resetSpatialPartitionKernel, _updateBufferKernel, _spatialPartitionBufferSize;
 
     private void Awake()
     {
@@ -165,7 +198,6 @@ public class ParticleCollision2D : MonoBehaviour
         rt.autoGenerateMips = false;
         rt.useMipMap = false;
         rt.Create();
-        _textures.Add(rt);
         return rt;
     }
 
@@ -179,7 +211,11 @@ public class ParticleCollision2D : MonoBehaviour
         _outTexture = CreateRenderTexture(RenderTextureFormat.ARGBFloat);
         _rdTextures.Add(new RDTexture {texture = _outTexture, name = "outTexture"});
 
-        _particlesRenderKernel = _shader.FindKernel("ParticlesRenderKernel");
+        if (_resetObstacles || _obstacleTexture == null)
+            _obstacleTexture = CreateRenderTexture(RenderTextureFormat.ARGBFloat);
+
+        _rdTextures.Add(new RDTexture {texture = _obstacleTexture, name = "obstacleTexture"});
+
         _particlesKernel = _shader.FindKernel("ParticlesKernel");
         _updateBufferKernel = _shader.FindKernel("UpdateBufferKernel");
         _renderKernel = _shader.FindKernel("RenderKernel");
@@ -202,7 +238,7 @@ public class ParticleCollision2D : MonoBehaviour
 
     private void GPUResetKernel()
     {
-        SetRules();
+        SetShaderParams();
         int _resetKernel = _shader.FindKernel("ResetParticlesKernel");
         _shader.SetBuffer(_resetKernel, "particlesBuffer", _particlesBuffer);
         _shader.SetBuffer(_resetKernel, "particlesBufferRead", _particlesBufferRead);
@@ -213,9 +249,9 @@ public class ParticleCollision2D : MonoBehaviour
     private void Step()
     {
         HandleTouch();
-        if (_dynamicVariables) SetRules();
-        GPUParticlesKernel();
+        if (_dynamicVariables) SetShaderParams();
         Render();
+        GPUParticlesKernel();
     }
 
     private void GPUParticlesKernel()
@@ -225,11 +261,14 @@ public class ParticleCollision2D : MonoBehaviour
             _shader.SetBuffer(_resetSpatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
             _shader.Dispatch(_resetSpatialPartitionKernel, _spatialPartitionBufferSize / 64, 1, 1);
 
+            _shader.SetTexture(_spatialPartitionKernel, "outTexture", _outTexture);
             _shader.SetBuffer(_spatialPartitionKernel, "particlesBufferRead", _particlesBufferRead);
             _shader.SetBuffer(_spatialPartitionKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
             _shader.Dispatch(_spatialPartitionKernel, _particlesCount / 64, 1, 1);
         }
 
+        _shader.SetTexture(_particlesKernel, "outTexture", _outTexture);
+        _shader.SetTexture(_particlesKernel, "obstacleTexture", _obstacleTexture);
         _shader.SetBuffer(_particlesKernel, "spatialPartitionBuffer", _spatialPartitionBuffer);
         _shader.SetBuffer(_particlesKernel, "particlesBuffer", _particlesBuffer);
         _shader.SetBuffer(_particlesKernel, "particlesBufferRead", _particlesBufferRead);
@@ -247,7 +286,6 @@ public class ParticleCollision2D : MonoBehaviour
     private void Render()
     {
         GPURenderKernel();
-        GPUParticlesRenderKernel();
         _image.texture = _rdTextures[0].texture;
     }
 
@@ -256,54 +294,72 @@ public class ParticleCollision2D : MonoBehaviour
         Vector2 threads = GetThreadGroupSize();
 
         _shader.SetTexture(_renderKernel, "outTexture", _outTexture);
+        _shader.SetTexture(_renderKernel, "obstacleTexture", _obstacleTexture);
         _shader.Dispatch(_renderKernel, (int) threads.x, (int) threads.y, 1);
     }
 
-    private void GPUParticlesRenderKernel()
+    private void SetShaderParams()
     {
-        _shader.SetBuffer(_particlesRenderKernel, "particlesBufferRead", _particlesBufferRead);
-        _shader.SetTexture(_particlesRenderKernel, "outTexture", _outTexture);
-
-        _shader.Dispatch(_particlesRenderKernel, _particlesCount / 64, 1, 1);
+        SetRules();
+        SetVisuals();
+        SetMouseInteraction();
+        SetSpatialPartitioning();
     }
 
     private void SetRules()
-    {
-        _rez = new Vector2(_rezX, _rezX / _camera.aspect);
-        
-        _shader.SetVector("rez", _rez);
+    {   
         _shader.SetInt("time", Time.frameCount);
         _shader.SetFloat("deltaTime", Time.deltaTime);
-        _shader.SetInt("particlesCount", _particlesCount);
-
-        _shader.SetInt("spatialDivisions", _spatialDivisions);
-        _shader.SetInt("spatialRange", _spatialRange);
-        _shader.SetInt("useSpatialPartitioning", _useSpatialPartitioning ? 1 : 0);
-
-        Vector2 _mouseTrigger = new Vector2(Input.GetMouseButton(0) ? 1 : 0, Input.GetMouseButton(1) ? 1 : 0);
-        Vector2 _mouseUV = new Vector2(Input.mousePosition.x / Screen.width, Input.mousePosition.y / Screen.height);
-        Cursor.visible = _mouseUV.x < 0 || _mouseUV.x > 1 || _mouseUV.y < 0 || _mouseUV.y > 1 ? true : false;
-
-        _shader.SetVector("mouseUV", _mouseUV);
-        _shader.SetVector("mouseTrigger", _mouseTrigger);
-        _shader.SetVector("mouseStrength", new Vector2(_mouseStrengthX, _mouseStrengthY));
-        _shader.SetFloat("mouseRadiusMultiplier", _mouseRadiusMultiplier);
-
-        _shader.SetInt("randomColor", _randomColor ? 1 : 0);
-        _shader.SetVector("particleColor", _particleColor);
-        _shader.SetInt("randomSize", _randomSize ? 1 : 0);
-        _shader.SetInt("particleSize", _particleSize);
+        _shader.SetInt("collideWithObstacles", _collideWithObstacles ? 1 : 0);
         _shader.SetFloat("dirMult", _dirMult);
         _shader.SetFloat("massMatters", _massMatters);
         _shader.SetFloat("spacing", _spacing);
         _shader.SetFloat("friction", _friction);
         _shader.SetFloat("bounceWall", _bounceWall);
+        _shader.SetFloat("bounceObstacles", _bounceObstacles);
         _shader.SetVector("wallPortion", new Vector2(_wallPortionX, _wallPortionY));
-        _shader.SetFloat("mouseRadius", _mouseRadius);
         _shader.SetFloat("gravityForce", _gravityForce);
         _shader.SetFloat("bounceParticle", _bounceParticle);
+    }
+
+    private void SetMouseInteraction()
+    {
+        Vector2 _mouseTrigger = new Vector2(Input.GetMouseButton(0) ? 1 : 0, Input.GetMouseButton(1) ? 1 : 0);
+        Vector2 _mouseUV = new Vector2(Input.mousePosition.x / Screen.width, Input.mousePosition.y / Screen.height);
+        Cursor.visible = _mouseUV.x < 0 || _mouseUV.x > 1 || _mouseUV.y < 0 || _mouseUV.y > 1 ? true : false;
+
+        _shader.SetVector("mouseUV", _mouseUV);
+        _shader.SetVector("mouseRadius", new Vector2(_mouseRadius, _mouseRadiusMultiplier));
+        _shader.SetVector("mouseTrigger", _mouseTrigger);
+        _shader.SetVector("mouseStrength", new Vector2(_mouseStrengthX, _mouseStrengthY));
+        _shader.SetVector("mouseColor", _mouseColor);
+        _shader.SetVector("mouseLeftClickColor", _mouseLeftClickColor);
+        _shader.SetVector("mouseRightClickColor", _mouseRightClickColor);
+        _shader.SetInt("useMouseToCreateObstacles", _useMouseToCreateObstacles ? 1 : 0);
+    }
+
+    private void SetVisuals()
+    {
+        _rez = new Vector2(_rezX, _rezX / _camera.aspect);
+        _shader.SetVector("rez", _rez);
+        _shader.SetInt("particlesCount", _particlesCount);
         _shader.SetFloat("colorDecay", _colorDecay);
         _shader.SetFloat("circleSmooth", _circleSmooth);
+        _shader.SetInt("particleSize", _particleSize);
+        _shader.SetInt("randomSize", _randomSize ? 1 : 0);
+        _shader.SetInt("randomColor", _randomColor ? 1 : 0);
+        _shader.SetVector("particleColor", _particleColor);
+        _shader.SetVector("obstacleColor", _obstacleColor);
+
+        _shader.SetInt("circleRenderType", (int) _circleRenderType);
+        _shader.SetVector("circlePercentage", new Vector4(_circlePercentageX, _circlePercentageY, _circlePercentageZ, _circlePercentageW));
+    }
+
+    private void SetSpatialPartitioning()
+    {
+        _shader.SetInt("spatialDivisions", _spatialDivisions);
+        _shader.SetInt("spatialRange", _spatialRange);
+        _shader.SetInt("useSpatialPartitioning", _useSpatialPartitioning ? 1 : 0);
     }
 
     private Vector2 GetThreadGroupSize()
@@ -326,13 +382,6 @@ public class ParticleCollision2D : MonoBehaviour
                     buffer.Release();
         
         _buffers = new List<ComputeBuffer>();
-    
-        if (_textures != null)
-            foreach (RenderTexture texture in _textures)
-                if (texture != null)
-                    texture.Release();
-        
-        _textures = new List<RenderTexture>();
     }
 
     private void HandleTouch()
