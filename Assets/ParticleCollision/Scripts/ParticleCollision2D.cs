@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
+using TMPro;
 
 public class ParticleCollision2D : MonoBehaviour
 {
@@ -162,6 +163,7 @@ public class ParticleCollision2D : MonoBehaviour
         public string name;
     }
 
+    [SerializeField] private TextMeshProUGUI _fpsText;
     [SerializeField] private  List<RDTexture> _rdTextures = new List<RDTexture>();
     private List<ComputeBuffer> _buffers;
     private ComputeBuffer _particlesBuffer, _particlesBufferRead, _spatialPartitionBuffer;
@@ -177,6 +179,9 @@ public class ParticleCollision2D : MonoBehaviour
 
     private void Update()
     {
+        if (_fpsText != null)
+            _fpsText.text = ((int) (1f / Time.unscaledDeltaTime)).ToString() + " fps";
+
         if (Time.frameCount % _stepsMod != 0 || !_isPlaying) return;
         for (int i = 0; i < _stepsFrame; i++)
             Step();
