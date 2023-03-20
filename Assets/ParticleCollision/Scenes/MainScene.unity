@@ -616,6 +616,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _shader: {fileID: 7200000, guid: c1a0acc42d4d1624f9ee734d23857168, type: 3}
   _image: {fileID: 499535570}
+  _vSync: 0
+  _unlimitedFPS: 0
+  _fps: 144
   _stepsFrame: 1
   _stepsMod: 1
   _dynamicVariables: 1
@@ -624,9 +627,9 @@ MonoBehaviour:
   _spatialDivisions: 8
   _spatialRange: 1
   _useSpatialPartitioning: 0
-  _gravityForce: 0.01
+  _gravityForce: 0.03
   _friction: 0.01
-  _massMatters: 0
+  _massMatters: 0.5
   _bounceWall: 0
   _bounceObstacles: 0
   _bounceParticle: 1
@@ -637,13 +640,13 @@ MonoBehaviour:
   _collideWithObstacles: 1
   _rezX: 2048
   _particlesCount: 2048
-  _particleSize: 8
-  _colorDecay: 0.311
+  _particleSize: 10
+  _colorDecay: 0.295
   _randomSize: 1
   _randomColor: 1
   _particleColor: {r: 1, g: 1, b: 1, a: 1}
   _obstacleColor: {r: 1, g: 0.511, b: 0.8060716, a: 1}
-  _circleSmooth: 1
+  _circleSmooth: 0.44
   _circleRenderType: 0
   _circlePercentageX: 1
   _circlePercentageY: 1

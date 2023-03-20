@@ -10,6 +10,14 @@ public class ParticleCollision2D : MonoBehaviour
     [SerializeField] private ComputeShader _shader;
     [SerializeField] private RawImage _image;
 
+    [SerializeField] private bool _vSync = true;
+    [SerializeField] private bool _unlimitedFPS = false;
+
+    private const int MAX_FPS = 144;
+    private const int MIN_FPS = 0;
+    [Range(MIN_FPS, MAX_FPS)]
+    [SerializeField] private int _fps = 60;
+
     private const float MAX_STEPS = 50f;
     private const float MIN_STEPS = 0f;
     [Range(MIN_STEPS, MAX_STEPS)]
@@ -209,6 +217,9 @@ public class ParticleCollision2D : MonoBehaviour
     [EButton]
     public void Reset()
     {
+        Application.targetFrameRate = _unlimitedFPS ? -1 : _fps;
+        QualitySettings.vSyncCount = _vSync || _unlimitedFPS ? 1 : 0;
+
         Release();
         _rez = new Vector2(_rezX, _rezX / _camera.aspect);
         
@@ -253,7 +264,7 @@ public class ParticleCollision2D : MonoBehaviour
     [EButton]
     private void Step()
     {
-        HandleTouch();
+        HandleKeys();
         if (_dynamicVariables) SetShaderParams();
         Render();
         GPUParticlesKernel();
@@ -313,8 +324,9 @@ public class ParticleCollision2D : MonoBehaviour
 
     private void SetRules()
     {   
+        print(Time.fixedDeltaTime);
         _shader.SetInt("time", Time.frameCount);
-        _shader.SetFloat("deltaTime", Time.deltaTime);
+        _shader.SetFloat("deltaTime", Time.fixedDeltaTime);
         _shader.SetInt("collideWithObstacles", _collideWithObstacles ? 1 : 0);
         _shader.SetFloat("dirMult", _dirMult);
         _shader.SetFloat("massMatters", _massMatters);
@@ -389,10 +401,18 @@ public class ParticleCollision2D : MonoBehaviour
         _buffers = new List<ComputeBuffer>();
     }
 
-    private void HandleTouch()
+    private void HandleKeys()
     {
-        // finger down reset
-        if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
+        if (Input.GetKeyDown(KeyCode.R))
             Reset();
+        
+        if (Input.GetKeyDown(KeyCode.Space))
+            _useMouseToCreateObstacles = !_useMouseToCreateObstacles;
+        
+        if (Input.GetAxis("Mouse ScrollWheel") > 0)
+            _mouseRadius += 0.001f;
+        
+        if (Input.GetAxis("Mouse ScrollWheel") < 0)
+            _mouseRadius -= 0.001f;
     }
 }
