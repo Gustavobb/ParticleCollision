@@ -324,7 +324,6 @@ public class ParticleCollision2D : MonoBehaviour
 
     private void SetRules()
     {   
-        print(Time.fixedDeltaTime);
         _shader.SetInt("time", Time.frameCount);
         _shader.SetFloat("deltaTime", Time.fixedDeltaTime);
         _shader.SetInt("collideWithObstacles", _collideWithObstacles ? 1 : 0);
